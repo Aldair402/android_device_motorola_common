@@ -47,6 +47,24 @@ using FlagQueue = AidlMessageQueue<int8_t, SynchronizedReadWrite>;
 
 enum class AdpfErrorCode : int32_t { ERR_OK = 0, ERR_BAD_STATE = -1, ERR_BAD_ARG = -2 };
 
+enum class SessionJankyLevel : int32_t {
+    /**
+     * Small number of jank frames in the monitoring window.
+     * No extra heuristic boost will be applied.
+     */
+    LIGHT = 0,
+    /**
+     * Moderate number of jank frames in the monitoring window.
+     * Heuristic boost applied.
+     */
+    MODERATE,
+    /**
+     * Significant number of jank frames in the monitoring window.
+     * Heuristic boost applied.
+     */
+    SEVERE,
+};
+
 enum class AdpfVoteType : int32_t {
     CPU_VOTE_DEFAULT = 0,
     CPU_LOAD_UP,

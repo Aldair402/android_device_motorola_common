@@ -104,9 +104,20 @@ int64_t PowerHintSession<HintManagerT, PowerSessionManagerT>::convertWorkDuratio
 
     auto pid_pu_active = adpfConfig->mPidPu;
     if (adpfConfig->mHeuristicBoostOn.has_value() && adpfConfig->mHeuristicBoostOn.value()) {
-        pid_pu_active = mHeuristicBoostActive
-                                ? adpfConfig->mPidPu * adpfConfig->mHBoostPidPuFactor.value()
-                                : adpfConfig->mPidPu;
+        auto hboostPidPu = std::min(adpfConfig->mHBoostSevereJankPidPu.value(), adpfConfig->mPidPu);
+        if (mJankyLevel == SessionJankyLevel::MODERATE) {
+            double JankyFactor =
+                    mJankyFrameNum < adpfConfig->mHBoostModerateJankThreshold.value()
+                            ? 0.0
+                            : (mJankyFrameNum - adpfConfig->mHBoostModerateJankThreshold.value()) *
+                                      1.0 /
+                                      (adpfConfig->mHBoostSevereJankThreshold.value() -
+                                       adpfConfig->mHBoostModerateJankThreshold.value());
+            pid_pu_active = adpfConfig->mPidPu + JankyFactor * (hboostPidPu - adpfConfig->mPidPu);
+        } else if (mJankyLevel == SessionJankyLevel::SEVERE) {
+            pid_pu_active = hboostPidPu;
+        }
+        ATRACE_INT(mAppDescriptorTrace->trace_hboost_pid_pu.c_str(), pid_pu_active * 100);
     }
     int64_t pOut = static_cast<int64_t>((err_sum > 0 ? adpfConfig->mPidPo : pid_pu_active) *
                                         err_sum / (length - p_start));
@@ -293,14 +304,42 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::updateT
 }
 
 template <class HintManagerT, class PowerSessionManagerT>
-bool PowerHintSession<HintManagerT, PowerSessionManagerT>::updateHeuristicBoost() {
+SessionJankyLevel PowerHintSession<HintManagerT, PowerSessionManagerT>::updateSessionJankState(
+        SessionJankyLevel oldState, int32_t numOfJankFrames, double durationVariance,
+        bool isLowFPS) {
+    SessionJankyLevel newState = SessionJankyLevel::LIGHT;
+    if (isLowFPS) {
+        newState = SessionJankyLevel::LIGHT;
+        return newState;
+    }
+
+    auto adpfConfig = HintManagerT::GetInstance()->GetAdpfProfile();
+    if (numOfJankFrames < adpfConfig->mHBoostModerateJankThreshold.value()) {
+        if (oldState == SessionJankyLevel::LIGHT ||
+            durationVariance < adpfConfig->mHBoostOffMaxAvgDurRatio.value()) {
+            newState = SessionJankyLevel::LIGHT;
+        } else {
+            newState = SessionJankyLevel::MODERATE;
+        }
+    } else if (numOfJankFrames < adpfConfig->mHBoostSevereJankThreshold.value()) {
+        newState = SessionJankyLevel::MODERATE;
+    } else {
+        newState = SessionJankyLevel::SEVERE;
+    }
+
+    return newState;
+}
+
+template <class HintManagerT, class PowerSessionManagerT>
+void PowerHintSession<HintManagerT, PowerSessionManagerT>::updateHeuristicBoost() {
     auto maxDurationUs = mSessionRecords->getMaxDuration();  // micro seconds
     auto avgDurationUs = mSessionRecords->getAvgDuration();  // micro seconds
     auto numOfReportedDurations = mSessionRecords->getNumOfRecords();
-    auto numOfMissedCycles = mSessionRecords->getNumOfMissedCycles();
+    auto numOfJankFrames = mSessionRecords->getNumOfMissedCycles();
 
     if (!maxDurationUs.has_value() || !avgDurationUs.has_value()) {
-        return false;
+        // No history data stored
+        return;
     }
 
     double maxToAvgRatio;
@@ -310,26 +349,18 @@ bool PowerHintSession<HintManagerT, PowerSessionManagerT>::updateHeuristicBoost(
         maxToAvgRatio = maxDurationUs.value() / avgDurationUs.value();
     }
 
-    auto adpfConfig = HintManagerT::GetInstance()->GetAdpfProfile();
+    auto isLowFPS = mSessionRecords->isLowFrameRate(
+            HintManagerT::GetInstance()->GetAdpfProfile()->mLowFrameRateThreshold.value());
 
-    if (mSessionRecords->isLowFrameRate(adpfConfig->mLowFrameRateThreshold.value())) {
-        // Turn off the boost when the FPS drops to a low value,
-        // since usually this is because of ui changing to low rate scenarios.
-        // Extra boost is not needed in these scenarios.
-        mHeuristicBoostActive = false;
-    } else if (numOfMissedCycles >= adpfConfig->mHBoostOnMissedCycles.value()) {
-        mHeuristicBoostActive = true;
-    } else if (numOfMissedCycles <= adpfConfig->mHBoostOffMissedCycles.value() &&
-               maxToAvgRatio < adpfConfig->mHBoostOffMaxAvgRatio.value()) {
-        mHeuristicBoostActive = false;
-    }
-    ATRACE_INT(mAppDescriptorTrace->trace_heuristic_boost_active.c_str(), mHeuristicBoostActive);
-    ATRACE_INT(mAppDescriptorTrace->trace_missed_cycles.c_str(), numOfMissedCycles);
+    mJankyLevel = updateSessionJankState(mJankyLevel, numOfJankFrames, maxToAvgRatio, isLowFPS);
+    mJankyFrameNum = numOfJankFrames;
+
+    ATRACE_INT(mAppDescriptorTrace->trace_hboost_janky_level.c_str(),
+               static_cast<int32_t>(mJankyLevel));
+    ATRACE_INT(mAppDescriptorTrace->trace_missed_cycles.c_str(), mJankyFrameNum);
     ATRACE_INT(mAppDescriptorTrace->trace_avg_duration.c_str(), avgDurationUs.value());
     ATRACE_INT(mAppDescriptorTrace->trace_max_duration.c_str(), maxDurationUs.value());
-    ATRACE_INT(mAppDescriptorTrace->trace_low_frame_rate.c_str(),
-               mSessionRecords->isLowFrameRate(adpfConfig->mLowFrameRateThreshold.value()));
-    return mHeuristicBoostActive;
+    ATRACE_INT(mAppDescriptorTrace->trace_low_frame_rate.c_str(), isLowFPS);
 }
 
 template <class HintManagerT, class PowerSessionManagerT>
@@ -384,7 +415,10 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::reportA
         return ndk::ScopedAStatus::ok();
     }
 
-    if (adpfConfig->mHeuristicBoostOn.has_value() && adpfConfig->mHeuristicBoostOn.value()) {
+    bool hboostEnabled =
+            adpfConfig->mHeuristicBoostOn.has_value() && adpfConfig->mHeuristicBoostOn.value();
+
+    if (hboostEnabled) {
         mSessionRecords->addReportedDurations(actualDurations, mDescriptor->targetNs.count());
         updateHeuristicBoost();
     }
@@ -392,15 +426,42 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::reportA
     int64_t output = convertWorkDurationToBoostByPid(actualDurations);
 
     // Apply to all the threads in the group
+    auto uclampMinFloor = adpfConfig->mUclampMinLow;
     auto uclampMinCeiling = adpfConfig->mUclampMinHigh;
-    if (adpfConfig->mHeuristicBoostOn.has_value() && adpfConfig->mHeuristicBoostOn.value()) {
-        uclampMinCeiling = mHeuristicBoostActive ? adpfConfig->mHBoostUclampMin.value()
-                                                 : adpfConfig->mUclampMinHigh;
+    if (hboostEnabled) {
+        auto hboostMinUclampMinFloor = std::max(
+                adpfConfig->mUclampMinLow, adpfConfig->mHBoostUclampMinFloorRange.value().first);
+        auto hboostMaxUclampMinFloor = std::max(
+                adpfConfig->mUclampMinLow, adpfConfig->mHBoostUclampMinFloorRange.value().second);
+        auto hboostMinUclampMinCeiling = std::max(
+                adpfConfig->mUclampMinHigh, adpfConfig->mHBoostUclampMinCeilingRange.value().first);
+        auto hboostMaxUclampMinCeiling =
+                std::max(adpfConfig->mUclampMinHigh,
+                         adpfConfig->mHBoostUclampMinCeilingRange.value().second);
+        if (mJankyLevel == SessionJankyLevel::MODERATE) {
+            double JankyFactor =
+                    mJankyFrameNum < adpfConfig->mHBoostModerateJankThreshold.value()
+                            ? 0.0
+                            : (mJankyFrameNum - adpfConfig->mHBoostModerateJankThreshold.value()) *
+                                      1.0 /
+                                      (adpfConfig->mHBoostSevereJankThreshold.value() -
+                                       adpfConfig->mHBoostModerateJankThreshold.value());
+            uclampMinFloor = hboostMinUclampMinFloor +
+                             (hboostMaxUclampMinFloor - hboostMinUclampMinFloor) * JankyFactor;
+            uclampMinCeiling =
+                    hboostMinUclampMinCeiling +
+                    (hboostMaxUclampMinCeiling - hboostMinUclampMinCeiling) * JankyFactor;
+        } else if (mJankyLevel == SessionJankyLevel::SEVERE) {
+            uclampMinFloor = hboostMaxUclampMinFloor;
+            uclampMinCeiling = hboostMaxUclampMinCeiling;
+        }
+        ATRACE_INT(mAppDescriptorTrace->trace_uclamp_min_ceiling.c_str(), uclampMinCeiling);
+        ATRACE_INT(mAppDescriptorTrace->trace_uclamp_min_floor.c_str(), uclampMinFloor);
     }
 
     int next_min = std::min(static_cast<int>(uclampMinCeiling),
                             mDescriptor->pidControlVariable + static_cast<int>(output));
-    next_min = std::max(static_cast<int>(adpfConfig->mUclampMinLow), next_min);
+    next_min = std::max(static_cast<int>(uclampMinFloor), next_min);
 
     updatePidControlVariable(next_min);
 

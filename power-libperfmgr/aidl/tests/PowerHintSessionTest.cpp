@@ -325,6 +325,44 @@ TEST_F(PowerHintSessionTest, checkPauseResumeTag) {
     sess2->close();
 }
 
+TEST_F(PowerHintSessionMockedTest, updateSessionJankState) {
+    // Low FPS
+    ASSERT_EQ(SessionJankyLevel::LIGHT,
+              mHintSession->updateSessionJankState(SessionJankyLevel::SEVERE, 8, 5.0, true));
+    ASSERT_EQ(SessionJankyLevel::LIGHT,
+              mHintSession->updateSessionJankState(SessionJankyLevel::MODERATE, 8, 5.0, true));
+    ASSERT_EQ(SessionJankyLevel::LIGHT,
+              mHintSession->updateSessionJankState(SessionJankyLevel::LIGHT, 8, 5.0, true));
+    // Light number of jank frames, and high workload duration variance.
+    ASSERT_EQ(SessionJankyLevel::MODERATE,
+              mHintSession->updateSessionJankState(SessionJankyLevel::SEVERE, 1, 5.0, false));
+    ASSERT_EQ(SessionJankyLevel::MODERATE,
+              mHintSession->updateSessionJankState(SessionJankyLevel::MODERATE, 1, 5.0, false));
+    ASSERT_EQ(SessionJankyLevel::LIGHT,
+              mHintSession->updateSessionJankState(SessionJankyLevel::LIGHT, 1, 5.0, false));
+    // Light number of jank frames, and low workload duration variance.
+    ASSERT_EQ(SessionJankyLevel::LIGHT,
+              mHintSession->updateSessionJankState(SessionJankyLevel::SEVERE, 1, 1.0, false));
+    ASSERT_EQ(SessionJankyLevel::LIGHT,
+              mHintSession->updateSessionJankState(SessionJankyLevel::MODERATE, 1, 1.0, false));
+    ASSERT_EQ(SessionJankyLevel::LIGHT,
+              mHintSession->updateSessionJankState(SessionJankyLevel::LIGHT, 1, 1.0, false));
+    // Moderate number of jank frames
+    ASSERT_EQ(SessionJankyLevel::MODERATE,
+              mHintSession->updateSessionJankState(SessionJankyLevel::SEVERE, 4, 5.0, false));
+    ASSERT_EQ(SessionJankyLevel::MODERATE,
+              mHintSession->updateSessionJankState(SessionJankyLevel::MODERATE, 4, 5.0, false));
+    ASSERT_EQ(SessionJankyLevel::MODERATE,
+              mHintSession->updateSessionJankState(SessionJankyLevel::LIGHT, 4, 5.0, false));
+    // Significant number of jank frames
+    ASSERT_EQ(SessionJankyLevel::SEVERE,
+              mHintSession->updateSessionJankState(SessionJankyLevel::SEVERE, 9, 5.0, false));
+    ASSERT_EQ(SessionJankyLevel::SEVERE,
+              mHintSession->updateSessionJankState(SessionJankyLevel::MODERATE, 9, 5.0, false));
+    ASSERT_EQ(SessionJankyLevel::SEVERE,
+              mHintSession->updateSessionJankState(SessionJankyLevel::LIGHT, 9, 5.0, false));
+}
+
 }  // namespace pixel
 }  // namespace impl
 }  // namespace power

@@ -81,7 +81,10 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
             REQUIRES(mPowerHintSessionLock);
     int64_t convertWorkDurationToBoostByPid(const std::vector<WorkDuration> &actualDurations)
             REQUIRES(mPowerHintSessionLock);
-    bool updateHeuristicBoost() REQUIRES(mPowerHintSessionLock);
+    SessionJankyLevel updateSessionJankState(SessionJankyLevel oldState, int32_t numOfJankFrames,
+                                             double durationVariance, bool isLowFPS)
+            REQUIRES(mPowerHintSessionLock);
+    void updateHeuristicBoost() REQUIRES(mPowerHintSessionLock);
 
     // Data
     PowerSessionManagerT *mPSManager;
@@ -102,6 +105,8 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     const SessionTag mTag;
     std::unique_ptr<SessionRecords> mSessionRecords GUARDED_BY(mPowerHintSessionLock) = nullptr;
     bool mHeuristicBoostActive GUARDED_BY(mPowerHintSessionLock){false};
+    SessionJankyLevel mJankyLevel GUARDED_BY(mPowerHintSessionLock){SessionJankyLevel::LIGHT};
+    uint32_t mJankyFrameNum GUARDED_BY(mPowerHintSessionLock){0};
 };
 
 }  // namespace pixel
