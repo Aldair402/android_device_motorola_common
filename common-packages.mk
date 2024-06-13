@@ -45,9 +45,18 @@ PRODUCT_PACKAGES += \
     libtinycompress \
     tinymix
 
+# Camera
+PRODUCT_PACKAGES += \
+    libcamera_metadata.vendor \
+    libpng.vendor
+
 # Charger
 PRODUCT_PACKAGES += \
     charger_res_images
+
+# cURL
+PRODUCT_PACKAGES += \
+    libcurl.vendor
 
 # Dynamic
 ifeq ($(TARGET_USES_DYNAMIC_PARTITIONS),true)
@@ -55,11 +64,19 @@ ifeq ($(TARGET_USES_DYNAMIC_PARTITIONS),true)
       fastbootd
 endif
 
+# Expat
+PRODUCT_PACKAGES += \
+    libexpat.vendor
+
 # FIXME: master: compat for libprotobuf
 # See https://android-review.googlesource.com/c/platform/prebuilts/vndk/v28/+/1109518
 PRODUCT_PACKAGES += \
     libprotobuf-cpp-full-3.9.1-vendorcompat \
     libprotobuf-cpp-full-vendorcompat
+
+# Gatekeeper
+PRODUCT_PACKAGES += \
+    libgatekeeper.vendor
 
 # HIDL
 PRODUCT_PACKAGES += \
@@ -86,6 +103,10 @@ PRODUCT_PACKAGES += \
 # MotoActions
 PRODUCT_PACKAGES += \
     MotoActions
+
+# Net
+PRODUCT_PACKAGES += \
+    libnetutils.vendor
 
 # NFC
 ifeq ($(call device-has-characteristic,nfc),true)
@@ -136,6 +157,10 @@ PRODUCT_PACKAGES += \
     libjson \
     libprotobuf-cpp-full \
     libsensorndkbridge
+
+# Utils
+PRODUCT_PACKAGES += \
+    libutilscallstack.vendor
 
 # WiFi
 PRODUCT_PACKAGES += \
