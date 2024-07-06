@@ -109,11 +109,10 @@ endif
 ifeq (,$(wildcard $(fstab_path)))
   $(error $(fstab_path) does not exist!)
 endif
-## Check the contents for just /vendor,
-## its unlikely fstab will just have /vendor
-## as the expected partition type not the others
+## Check the contents for just the partition type being
+## mentioned at all.
 fstab_contents := $(strip $(shell cat $(fstab_path)))
-ifeq (,$(findstring /vendor $(PARTITION_TYPE),$(fstab_contents)))
+ifeq (,$(findstring $(PARTITION_TYPE),$(fstab_contents)))
   $(error $(PARTITION_TYPE) not defined in fstab!)
 endif
 ## Now that we know the partition type, let's add
