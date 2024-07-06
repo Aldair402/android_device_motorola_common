@@ -161,6 +161,7 @@ endif
 ifeq ($(PRODUCT_USES_MTK_HARDWARE),true)
   BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor_mtk
 endif
+SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/private
 
 # VINTF
 DEVICE_MANIFEST_FILE += $(COMMON_PATH)/vintf/manifest.xml
