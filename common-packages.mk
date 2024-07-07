@@ -48,6 +48,7 @@ PRODUCT_PACKAGES += \
 # Camera
 PRODUCT_PACKAGES += \
     libcamera_metadata.vendor \
+    libexif.vendor \
     libpng.vendor
 
 # Charger
@@ -95,6 +96,10 @@ PRODUCT_PACKAGES += \
     qti_telephony_hidl_wrapper_prd.xml \
     qti-telephony-utils-prd \
     qti_telephony_utils_prd.xml
+
+# JSON
+PRODUCT_PACKAGES += \
+    libjsoncpp.vendor
 
 # Media
 PRODUCT_PACKAGES += \
@@ -160,7 +165,12 @@ PRODUCT_PACKAGES += \
 
 # Utils
 PRODUCT_PACKAGES += \
+    libsysutils.vendor \
     libutilscallstack.vendor
+
+# SQLite
+PRODUCT_PACKAGES += \
+    libsqlite.vendor
 
 # WiFi
 PRODUCT_PACKAGES += \
