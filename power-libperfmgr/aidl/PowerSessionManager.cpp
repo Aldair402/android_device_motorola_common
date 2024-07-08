@@ -603,6 +603,30 @@ void PowerSessionManager<HintManagerT>::clear() {
     mSessionMap.clear();
 }
 
+template <class HintManagerT>
+void PowerSessionManager<HintManagerT>::updateHboostStatistics(int64_t sessionId,
+                                                               SessionJankyLevel jankyLevel,
+                                                               int32_t numOfFrames) {
+    std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
+    auto sessValPtr = mSessionTaskMap.findSession(sessionId);
+    if (nullptr == sessValPtr) {
+        return;
+    }
+    switch (jankyLevel) {
+        case SessionJankyLevel::LIGHT:
+            sessValPtr->hBoostModeDist.lightModeFrames += numOfFrames;
+            break;
+        case SessionJankyLevel::MODERATE:
+            sessValPtr->hBoostModeDist.moderateModeFrames += numOfFrames;
+            break;
+        case SessionJankyLevel::SEVERE:
+            sessValPtr->hBoostModeDist.severeModeFrames += numOfFrames;
+            break;
+        default:
+            ALOGW("Unknown janky level during updateHboostStatistics");
+    }
+}
+
 template class PowerSessionManager<>;
 template class PowerSessionManager<testing::NiceMock<mock::pixel::MockHintManager>>;
 

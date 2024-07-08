@@ -28,6 +28,13 @@ namespace power {
 namespace impl {
 namespace pixel {
 
+// Record the heuristic boost mode distribution among the frames
+struct HeurBoostStatistics {
+    int64_t lightModeFrames{0};
+    int64_t moderateModeFrames{0};
+    int64_t severeModeFrames{0};
+};
+
 // Per-power-session values (equivalent to original PowerHintSession)
 // Responsible for maintaining the state of the power session via attributes
 // Primarily this means actual uclamp value and whether session is active
@@ -44,6 +51,7 @@ struct SessionValueEntry {
     std::shared_ptr<Votes> votes;
     std::shared_ptr<AppDescriptorTrace> sessionTrace;
     bool isPowerEfficient{false};
+    HeurBoostStatistics hBoostModeDist;
 
     // Write info about power session to ostream for logging and debugging
     std::ostream &dump(std::ostream &os) const;

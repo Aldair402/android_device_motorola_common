@@ -78,6 +78,9 @@ class PowerSessionManager : public Immobile {
 
     void setPreferPowerEfficiency(int64_t sessionId, bool enabled);
 
+    void updateHboostStatistics(int64_t sessionId, SessionJankyLevel jankyLevel,
+                                int32_t numOfFrames);
+
     // Singleton
     static PowerSessionManager *getInstance() {
         static PowerSessionManager instance{};

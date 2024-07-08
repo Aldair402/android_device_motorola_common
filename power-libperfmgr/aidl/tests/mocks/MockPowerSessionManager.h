@@ -68,6 +68,9 @@ class MockPowerSessionManager {
     MOCK_METHOD(void, unregisterSession, (int64_t sessionId), ());
     MOCK_METHOD(void, clear, (), ());
     MOCK_METHOD(std::shared_ptr<void>, getSession, (int64_t sessionId), ());
+    MOCK_METHOD(void, updateHboostStatistics,
+                (int64_t sessionId, impl::pixel::SessionJankyLevel jankyLevel, int32_t numOfFrames),
+                ());
 
     static testing::NiceMock<MockPowerSessionManager> *getInstance() {
         static testing::NiceMock<MockPowerSessionManager> instance{};

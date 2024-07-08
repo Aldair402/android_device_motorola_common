@@ -420,6 +420,7 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::reportA
 
     if (hboostEnabled) {
         mSessionRecords->addReportedDurations(actualDurations, mDescriptor->targetNs.count());
+        mPSManager->updateHboostStatistics(mSessionId, mJankyLevel, actualDurations.size());
         updateHeuristicBoost();
     }
 
