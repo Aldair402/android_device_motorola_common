@@ -113,6 +113,7 @@ PRODUCT_PACKAGES += \
 
 # Media
 $(call inherit-product-if-exists, vendor/qcom/opensource/media/$(qcom_platform)/product.mk)
+TARGET_DISABLE_C2_CODEC := false
 
 # Power
 TARGET_PROVIDES_POWERHAL := true
