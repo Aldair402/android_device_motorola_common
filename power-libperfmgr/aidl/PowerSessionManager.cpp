@@ -78,6 +78,7 @@ static int set_uclamp(int tid, UclampRange range) {
 }
 }  // namespace
 
+// TODO(jimmyshiu@): Deprecated. Remove once all powerhint.json up-to-date.
 template <class HintManagerT>
 void PowerSessionManager<HintManagerT>::updateHintMode(const std::string &mode, bool enabled) {
     if (enabled && mode.compare(0, 8, "REFRESH_") == 0) {
@@ -89,8 +90,8 @@ void PowerSessionManager<HintManagerT>::updateHintMode(const std::string &mode, 
             mDisplayRefreshRate = 60;
         }
     }
-    if (HintManager::GetInstance()->GetAdpfProfile()) {
-        HintManager::GetInstance()->SetAdpfProfile(mode);
+    if (HintManager::GetInstance()->GetAdpfProfileFromDoHint()) {
+        HintManager::GetInstance()->SetAdpfProfileFromDoHint(mode);
     }
 }
 
