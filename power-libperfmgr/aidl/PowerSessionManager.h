@@ -46,8 +46,6 @@ class PowerSessionManager : public Immobile {
 
     // Update the current hint info
     void updateHintMode(const std::string &mode, bool enabled);
-    void updateHintBoost(const std::string &boost, int32_t durationMs);
-    int getDisplayRefreshRate();
     // Add and remove power hint session
     void addPowerSession(const std::string &idString,
                          const std::shared_ptr<AppHintDesc> &sessionDescriptor,
@@ -101,8 +99,6 @@ class PowerSessionManager : public Immobile {
     void enableSystemTopAppBoost();
     const std::string kDisableBoostHintName;
 
-    int mDisplayRefreshRate;
-
     // Rewrite specific
     mutable std::mutex mSessionTaskMapMutex;
     SessionTaskMap mSessionTaskMap;
@@ -132,7 +128,6 @@ class PowerSessionManager : public Immobile {
     PowerSessionManager()
         : kDisableBoostHintName(::android::base::GetProperty(kPowerHalAdpfDisableTopAppBoost,
                                                              "ADPF_DISABLE_TA_BOOST")),
-          mDisplayRefreshRate(60),
           mPriorityQueueWorkerPool(new PriorityQueueWorkerPool(1, "adpf_handler")),
           mEventSessionTimeoutWorker([&](auto e) { handleEvent(e); }, mPriorityQueueWorkerPool),
           mGpuCapacityNode(createGpuCapacityNode()) {}

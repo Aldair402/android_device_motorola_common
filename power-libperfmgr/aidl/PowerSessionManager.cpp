@@ -20,7 +20,6 @@
 #include "PowerSessionManager.h"
 
 #include <android-base/file.h>
-#include <android-base/stringprintf.h>
 #include <log/log.h>
 #include <perfmgr/HintManager.h>
 #include <private/android_filesystem_config.h>
@@ -81,31 +80,10 @@ static int set_uclamp(int tid, UclampRange range) {
 // TODO(jimmyshiu@): Deprecated. Remove once all powerhint.json up-to-date.
 template <class HintManagerT>
 void PowerSessionManager<HintManagerT>::updateHintMode(const std::string &mode, bool enabled) {
-    if (enabled && mode.compare(0, 8, "REFRESH_") == 0) {
-        if (mode.compare("REFRESH_120FPS") == 0) {
-            mDisplayRefreshRate = 120;
-        } else if (mode.compare("REFRESH_90FPS") == 0) {
-            mDisplayRefreshRate = 90;
-        } else if (mode.compare("REFRESH_60FPS") == 0) {
-            mDisplayRefreshRate = 60;
-        }
-    }
-    if (HintManager::GetInstance()->GetAdpfProfileFromDoHint()) {
+    ALOGD("%s %s:%b", __func__, mode.c_str(), enabled);
+    if (enabled && HintManager::GetInstance()->GetAdpfProfileFromDoHint()) {
         HintManager::GetInstance()->SetAdpfProfileFromDoHint(mode);
     }
-}
-
-template <class HintManagerT>
-void PowerSessionManager<HintManagerT>::updateHintBoost(const std::string &boost,
-                                                        int32_t durationMs) {
-    ATRACE_CALL();
-    ALOGV("PowerSessionManager::updateHintBoost: boost: %s, durationMs: %d", boost.c_str(),
-          durationMs);
-}
-
-template <class HintManagerT>
-int PowerSessionManager<HintManagerT>::getDisplayRefreshRate() {
-    return mDisplayRefreshRate;
 }
 
 template <class HintManagerT>

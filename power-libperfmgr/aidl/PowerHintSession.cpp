@@ -23,7 +23,6 @@
 #include <android-base/parsedouble.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
-#include <perfmgr/AdpfConfig.h>
 #include <private/android_filesystem_config.h>
 #include <sys/syscall.h>
 #include <time.h>
@@ -44,6 +43,7 @@ namespace pixel {
 
 using ::android::base::StringPrintf;
 using ::android::perfmgr::AdpfConfig;
+using ::android::perfmgr::HintManager;
 using std::chrono::duration_cast;
 using std::chrono::nanoseconds;
 
@@ -62,7 +62,7 @@ static inline int64_t ns_to_100us(int64_t ns) {
 template <class HintManagerT, class PowerSessionManagerT>
 int64_t PowerHintSession<HintManagerT, PowerSessionManagerT>::convertWorkDurationToBoostByPid(
         const std::vector<WorkDuration> &actualDurations) {
-    std::shared_ptr<AdpfConfig> adpfConfig = HintManagerT::GetInstance()->GetAdpfProfile();
+    std::shared_ptr<AdpfConfig> adpfConfig = getAdpfProfile();
     const nanoseconds &targetDuration = mDescriptor->targetNs;
     int64_t &integral_error = mDescriptor->integral_error;
     int64_t &previous_error = mDescriptor->previous_error;
@@ -150,18 +150,13 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
                                                 std::chrono::nanoseconds(durationNs))),
       mAppDescriptorTrace(std::make_shared<AppDescriptorTrace>(mIdString)),
       mTag(tag),
-      mSessionRecords(
-              HintManagerT::GetInstance()->GetAdpfProfile()->mHeuristicBoostOn.has_value() &&
-                              HintManagerT::GetInstance()
-                                      ->GetAdpfProfile()
-                                      ->mHeuristicBoostOn.value()
-                      ? std::make_unique<SessionRecords>(HintManagerT::GetInstance()
-                                                                 ->GetAdpfProfile()
-                                                                 ->mMaxRecordsNum.value(),
-                                                         HintManagerT::GetInstance()
-                                                                 ->GetAdpfProfile()
-                                                                 ->mJankCheckTimeFactor.value())
-                      : nullptr) {
+      mAdpfProfileTag(toString(tag)),
+      mSessionRecords(getAdpfProfile()->mHeuristicBoostOn.has_value() &&
+                                      getAdpfProfile()->mHeuristicBoostOn.value()
+                              ? std::make_unique<SessionRecords>(
+                                        getAdpfProfile()->mMaxRecordsNum.value(),
+                                        getAdpfProfile()->mJankCheckTimeFactor.value())
+                              : nullptr) {
     ATRACE_CALL();
     ATRACE_INT(mAppDescriptorTrace->trace_target.c_str(), mDescriptor->targetNs.count());
     ATRACE_INT(mAppDescriptorTrace->trace_active.c_str(), mDescriptor->is_active.load());
@@ -169,7 +164,7 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
     mLastUpdatedTime = std::chrono::steady_clock::now();
     mPSManager->addPowerSession(mIdString, mDescriptor, mAppDescriptorTrace, threadIds);
     // init boost
-    auto adpfConfig = HintManagerT::GetInstance()->GetAdpfProfile();
+    auto adpfConfig = getAdpfProfile();
     mPSManager->voteSet(
             mSessionId, AdpfVoteType::CPU_LOAD_RESET, adpfConfig->mUclampMinLoadReset, kUclampMax,
             std::chrono::steady_clock::now(),
@@ -201,7 +196,7 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::updatePidControlVaria
         int pidControlVariable, bool updateVote) {
     mDescriptor->pidControlVariable = pidControlVariable;
     if (updateVote) {
-        auto adpfConfig = HintManagerT::GetInstance()->GetAdpfProfile();
+        auto adpfConfig = getAdpfProfile();
         mPSManager->voteSet(mSessionId, AdpfVoteType::CPU_VOTE_DEFAULT, pidControlVariable,
                             kUclampMax, std::chrono::steady_clock::now(),
                             std::max(duration_cast<nanoseconds>(mDescriptor->targetNs *
@@ -293,8 +288,7 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::updateT
         ALOGE("Error: targetDurationNanos(%" PRId64 ") should bigger than 0", targetDurationNanos);
         return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
     }
-    targetDurationNanos =
-            targetDurationNanos * HintManagerT::GetInstance()->GetAdpfProfile()->mTargetTimeFactor;
+    targetDurationNanos = targetDurationNanos * getAdpfProfile()->mTargetTimeFactor;
 
     mDescriptor->targetNs = std::chrono::nanoseconds(targetDurationNanos);
     mPSManager->updateTargetWorkDuration(mSessionId, AdpfVoteType::CPU_VOTE_DEFAULT,
@@ -314,7 +308,7 @@ SessionJankyLevel PowerHintSession<HintManagerT, PowerSessionManagerT>::updateSe
         return newState;
     }
 
-    auto adpfConfig = HintManagerT::GetInstance()->GetAdpfProfile();
+    auto adpfConfig = getAdpfProfile();
     if (numOfJankFrames < adpfConfig->mHBoostModerateJankThreshold.value()) {
         if (oldState == SessionJankyLevel::LIGHT ||
             durationVariance < adpfConfig->mHBoostOffMaxAvgDurRatio.value()) {
@@ -350,8 +344,8 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::updateHeuristicBoost(
         maxToAvgRatio = maxDurationUs.value() / avgDurationUs.value();
     }
 
-    auto isLowFPS = mSessionRecords->isLowFrameRate(
-            HintManagerT::GetInstance()->GetAdpfProfile()->mLowFrameRateThreshold.value());
+    auto isLowFPS =
+            mSessionRecords->isLowFrameRate(getAdpfProfile()->mLowFrameRateThreshold.value());
 
     mJankyLevel = updateSessionJankState(mJankyLevel, numOfJankFrames, maxToAvgRatio, isLowFPS);
     mJankyFrameNum = numOfJankFrames;
@@ -384,8 +378,7 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::reportA
         ALOGE("Error: shouldn't report duration during pause state.");
         return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_STATE);
     }
-
-    auto adpfConfig = HintManagerT::GetInstance()->GetAdpfProfile();
+    auto adpfConfig = getAdpfProfile();
     mDescriptor->update_count++;
     bool isFirstFrame = isTimeout();
     ATRACE_INT(mAppDescriptorTrace->trace_batch_size.c_str(), actualDurations.size());
@@ -504,7 +497,7 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::sendHin
         ALOGE("Expect to call updateTargetWorkDuration() first.");
         return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_STATE);
     }
-    auto adpfConfig = HintManagerT::GetInstance()->GetAdpfProfile();
+    auto adpfConfig = getAdpfProfile();
 
     switch (hint) {
         case SessionHint::CPU_LOAD_UP:
@@ -596,7 +589,7 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::setThre
     mDescriptor->thread_ids = threadIds;
     mPSManager->setThreadsFromPowerSession(mSessionId, threadIds);
     // init boost
-    updatePidControlVariable(HintManagerT::GetInstance()->GetAdpfProfile()->mUclampMinInit);
+    updatePidControlVariable(getAdpfProfile()->mUclampMinInit);
     return ndk::ScopedAStatus::ok();
 }
 
@@ -610,6 +603,12 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::getSess
 template <class HintManagerT, class PowerSessionManagerT>
 SessionTag PowerHintSession<HintManagerT, PowerSessionManagerT>::getSessionTag() const {
     return mTag;
+}
+
+template <class HintManagerT, class PowerSessionManagerT>
+std::shared_ptr<AdpfConfig> PowerHintSession<HintManagerT, PowerSessionManagerT>::getAdpfProfile()
+        const {
+    return HintManager::GetInstance()->GetAdpfProfile(mAdpfProfileTag);
 }
 
 std::string AppHintDesc::toString() const {
@@ -626,9 +625,8 @@ bool PowerHintSession<HintManagerT, PowerSessionManagerT>::isTimeout() {
     auto now = std::chrono::steady_clock::now();
     time_point<steady_clock> staleTime =
             mLastUpdatedTime +
-            nanoseconds(static_cast<int64_t>(
-                    mDescriptor->targetNs.count() *
-                    HintManagerT::GetInstance()->GetAdpfProfile()->mStaleTimeFactor));
+            nanoseconds(static_cast<int64_t>(mDescriptor->targetNs.count() *
+                                             getAdpfProfile()->mStaleTimeFactor));
     return now >= staleTime;
 }
 

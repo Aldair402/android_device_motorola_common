@@ -40,6 +40,7 @@ using aidl::android::hardware::power::BnPowerHintSession;
 using ::android::Message;
 using ::android::MessageHandler;
 using ::android::sp;
+using ::android::perfmgr::AdpfConfig;
 using std::chrono::milliseconds;
 using std::chrono::nanoseconds;
 using std::chrono::steady_clock;
@@ -85,6 +86,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
                                              double durationVariance, bool isLowFPS)
             REQUIRES(mPowerHintSessionLock);
     void updateHeuristicBoost() REQUIRES(mPowerHintSessionLock);
+    std::shared_ptr<AdpfConfig> getAdpfProfile() const;
 
     // Data
     PowerSessionManagerT *mPSManager;
@@ -103,6 +105,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     std::array<bool, enum_size<SessionMode>()> mModes GUARDED_BY(mPowerHintSessionLock){};
     // Tag labeling what kind of session this is
     const SessionTag mTag;
+    const std::string mAdpfProfileTag;
     std::unique_ptr<SessionRecords> mSessionRecords GUARDED_BY(mPowerHintSessionLock) = nullptr;
     bool mHeuristicBoostActive GUARDED_BY(mPowerHintSessionLock){false};
     SessionJankyLevel mJankyLevel GUARDED_BY(mPowerHintSessionLock){SessionJankyLevel::LIGHT};
