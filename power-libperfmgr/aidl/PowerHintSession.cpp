@@ -144,7 +144,8 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
         SessionTag tag)
     : mPSManager(PowerSessionManagerT::getInstance()),
       mSessionId(++sSessionIDCounter),
-      mIdString(StringPrintf("%" PRId32 "-%" PRId32 "-%" PRId64, tgid, uid, mSessionId)),
+      mIdString(StringPrintf("%" PRId32 "-%" PRId32 "-%" PRId64 "-%s", tgid, uid, mSessionId,
+                             toString(tag).c_str())),
       mDescriptor(std::make_shared<AppHintDesc>(mSessionId, tgid, uid, threadIds, tag,
                                                 std::chrono::nanoseconds(durationNs))),
       mAppDescriptorTrace(std::make_shared<AppDescriptorTrace>(mIdString)),
