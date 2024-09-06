@@ -31,7 +31,7 @@ namespace power {
 namespace impl {
 namespace pixel {
 
-DisplayLowPower::DisplayLowPower() : mFossStatus(false) {}
+DisplayLowPower::DisplayLowPower() : mFossStatus(false), mAAModeOn(false) {}
 
 void DisplayLowPower::Init() {
     ConnectPpsDaemon();
@@ -77,6 +77,13 @@ void DisplayLowPower::SetFoss(bool enable) {
     if (!SendPpsCommand(foss_cmd)) {
         mFossStatus = enable;
     }
+}
+
+void DisplayLowPower::SetAAMode(bool enable) {
+    mAAModeOn = enable;
+}
+bool DisplayLowPower::IsAAModeOn() {
+  return mAAModeOn;
 }
 
 }  // namespace pixel

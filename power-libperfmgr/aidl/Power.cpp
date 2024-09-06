@@ -140,6 +140,15 @@ ndk::ScopedAStatus Power::setMode(Mode type, bool enabled) {
                 mVRModeOn = false;
             }
             break;
+        case Mode::AUTOMOTIVE_PROJECTION:
+            mDisplayLowPower->SetAAMode(enabled);
+            if (enabled) {
+                HintManager::GetInstance()->DoHint("AUTOMOTIVE_PROJECTION");
+            } else {
+                HintManager::GetInstance()->EndHint("AUTOMOTIVE_PROJECTION");
+                HintManager::GetInstance()->EndHint("DISPLAY_IDLE_AA");
+            }
+            break;
         case Mode::LAUNCH:
             if (mVRModeOn || mSustainedPerfModeOn) {
                 break;

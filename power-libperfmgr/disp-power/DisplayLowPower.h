@@ -33,6 +33,8 @@ class DisplayLowPower {
     ~DisplayLowPower() {}
     void Init();
     void SetDisplayLowPower(bool enable);
+    void SetAAMode(bool enable);
+    bool IsAAModeOn();
 
   private:
     void ConnectPpsDaemon();
@@ -41,6 +43,7 @@ class DisplayLowPower {
 
     ::android::base::unique_fd mPpsSocket;
     bool mFossStatus;
+    std::atomic<bool> mAAModeOn;
 };
 
 }  // namespace pixel
