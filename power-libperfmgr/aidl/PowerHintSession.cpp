@@ -399,10 +399,6 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::reportA
 
     mLastUpdatedTime = std::chrono::steady_clock::now();
     if (isFirstFrame) {
-        if (isAppSession()) {
-            tryToSendPowerHint("ADPF_FIRST_FRAME");
-        }
-
         mPSManager->updateUniversalBoostMode();
     }
 
@@ -492,65 +488,69 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::reportA
 template <class HintManagerT, class PowerSessionManagerT>
 ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::sendHint(
         SessionHint hint) {
-    std::scoped_lock lock{mPowerHintSessionLock};
-    if (mSessionClosed) {
-        ALOGE("Error: session is dead");
-        return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_STATE);
-    }
-    if (mDescriptor->targetNs.count() == 0LL) {
-        ALOGE("Expect to call updateTargetWorkDuration() first.");
-        return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_STATE);
-    }
-    auto adpfConfig = getAdpfProfile();
+    {
+        std::scoped_lock lock{mPowerHintSessionLock};
+        if (mSessionClosed) {
+            ALOGE("Error: session is dead");
+            return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_STATE);
+        }
+        if (mDescriptor->targetNs.count() == 0LL) {
+            ALOGE("Expect to call updateTargetWorkDuration() first.");
+            return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_STATE);
+        }
+        auto adpfConfig = getAdpfProfile();
 
-    switch (hint) {
-        case SessionHint::CPU_LOAD_UP:
-            updatePidControlVariable(mDescriptor->pidControlVariable);
-            mPSManager->voteSet(mSessionId, AdpfVoteType::CPU_LOAD_UP, adpfConfig->mUclampMinLoadUp,
-                                kUclampMax, std::chrono::steady_clock::now(),
-                                mDescriptor->targetNs * 2);
-            break;
-        case SessionHint::CPU_LOAD_DOWN:
-            updatePidControlVariable(adpfConfig->mUclampMinLow);
-            break;
-        case SessionHint::CPU_LOAD_RESET:
-            updatePidControlVariable(
-                    std::max(adpfConfig->mUclampMinInit,
-                             static_cast<uint32_t>(mDescriptor->pidControlVariable)),
-                    false);
-            mPSManager->voteSet(mSessionId, AdpfVoteType::CPU_LOAD_RESET,
-                                adpfConfig->mUclampMinLoadReset, kUclampMax,
-                                std::chrono::steady_clock::now(),
-                                duration_cast<nanoseconds>(mDescriptor->targetNs *
-                                                           adpfConfig->mStaleTimeFactor / 2.0));
-            break;
-        case SessionHint::CPU_LOAD_RESUME:
-            mPSManager->voteSet(mSessionId, AdpfVoteType::CPU_LOAD_RESUME,
-                                mDescriptor->pidControlVariable, kUclampMax,
-                                std::chrono::steady_clock::now(),
-                                duration_cast<nanoseconds>(mDescriptor->targetNs *
-                                                           adpfConfig->mStaleTimeFactor / 2.0));
-            break;
-        case SessionHint::POWER_EFFICIENCY:
-            setMode(SessionMode::POWER_EFFICIENCY, true);
-            break;
-        case SessionHint::GPU_LOAD_UP:
-            mPSManager->voteSet(mSessionId, AdpfVoteType::GPU_LOAD_UP,
-                                Cycles(adpfConfig->mGpuCapacityLoadUpHeadroom),
-                                std::chrono::steady_clock::now(), mDescriptor->targetNs);
-            break;
-        case SessionHint::GPU_LOAD_DOWN:
-            // TODO(kevindubois): add impl
-            break;
-        case SessionHint::GPU_LOAD_RESET:
-            // TODO(kevindubois): add impl
-            break;
-        default:
-            ALOGE("Error: hint is invalid");
-            return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+        switch (hint) {
+            case SessionHint::CPU_LOAD_UP:
+                updatePidControlVariable(mDescriptor->pidControlVariable);
+                mPSManager->voteSet(mSessionId, AdpfVoteType::CPU_LOAD_UP,
+                                    adpfConfig->mUclampMinLoadUp, kUclampMax,
+                                    std::chrono::steady_clock::now(), mDescriptor->targetNs * 2);
+                break;
+            case SessionHint::CPU_LOAD_DOWN:
+                updatePidControlVariable(adpfConfig->mUclampMinLow);
+                break;
+            case SessionHint::CPU_LOAD_RESET:
+                updatePidControlVariable(
+                        std::max(adpfConfig->mUclampMinInit,
+                                 static_cast<uint32_t>(mDescriptor->pidControlVariable)),
+                        false);
+                mPSManager->voteSet(mSessionId, AdpfVoteType::CPU_LOAD_RESET,
+                                    adpfConfig->mUclampMinLoadReset, kUclampMax,
+                                    std::chrono::steady_clock::now(),
+                                    duration_cast<nanoseconds>(mDescriptor->targetNs *
+                                                               adpfConfig->mStaleTimeFactor / 2.0));
+                break;
+            case SessionHint::CPU_LOAD_RESUME:
+                mPSManager->voteSet(mSessionId, AdpfVoteType::CPU_LOAD_RESUME,
+                                    mDescriptor->pidControlVariable, kUclampMax,
+                                    std::chrono::steady_clock::now(),
+                                    duration_cast<nanoseconds>(mDescriptor->targetNs *
+                                                               adpfConfig->mStaleTimeFactor / 2.0));
+                break;
+            case SessionHint::POWER_EFFICIENCY:
+                setMode(SessionMode::POWER_EFFICIENCY, true);
+                break;
+            case SessionHint::GPU_LOAD_UP:
+                mPSManager->voteSet(mSessionId, AdpfVoteType::GPU_LOAD_UP,
+                                    Cycles(adpfConfig->mGpuCapacityLoadUpHeadroom),
+                                    std::chrono::steady_clock::now(), mDescriptor->targetNs);
+                break;
+            case SessionHint::GPU_LOAD_DOWN:
+                // TODO(kevindubois): add impl
+                break;
+            case SessionHint::GPU_LOAD_RESET:
+                // TODO(kevindubois): add impl
+                break;
+            default:
+                ALOGE("Error: hint is invalid");
+                return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+        }
+        mLastUpdatedTime = std::chrono::steady_clock::now();
     }
+    // Don't hold a lock (mPowerHintSession) while DoHint will try to take another
+    // lock(NodeLooperThread).
     tryToSendPowerHint(toString(hint));
-    mLastUpdatedTime = std::chrono::steady_clock::now();
     return ndk::ScopedAStatus::ok();
 }
 
