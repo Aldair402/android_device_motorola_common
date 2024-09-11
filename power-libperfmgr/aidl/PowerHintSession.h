@@ -70,6 +70,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
 
     void dumpToStream(std::ostream &stream);
     SessionTag getSessionTag() const;
+    void setAdpfProfile(const std::shared_ptr<AdpfConfig> profile);
 
   private:
     // In practice this lock should almost never get contested, but it's necessary for FMQ
@@ -86,7 +87,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
                                              double durationVariance, bool isLowFPS)
             REQUIRES(mPowerHintSessionLock);
     void updateHeuristicBoost() REQUIRES(mPowerHintSessionLock);
-    std::shared_ptr<AdpfConfig> getAdpfProfile() const;
+    const std::shared_ptr<AdpfConfig> getAdpfProfile() const;
 
     // Data
     PowerSessionManagerT *mPSManager;
@@ -105,7 +106,8 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     std::array<bool, enum_size<SessionMode>()> mModes GUARDED_BY(mPowerHintSessionLock){};
     // Tag labeling what kind of session this is
     const SessionTag mTag;
-    const std::string mAdpfProfileTag;
+    std::shared_ptr<AdpfConfig> mAdpfProfile;
+    std::function<void(const std::shared_ptr<AdpfConfig>)> mOnAdpfUpdate;
     std::unique_ptr<SessionRecords> mSessionRecords GUARDED_BY(mPowerHintSessionLock) = nullptr;
     bool mHeuristicBoostActive GUARDED_BY(mPowerHintSessionLock){false};
     SessionJankyLevel mJankyLevel GUARDED_BY(mPowerHintSessionLock){SessionJankyLevel::LIGHT};

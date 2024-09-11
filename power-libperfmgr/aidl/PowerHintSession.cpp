@@ -150,7 +150,9 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
                                                 std::chrono::nanoseconds(durationNs))),
       mAppDescriptorTrace(std::make_shared<AppDescriptorTrace>(mIdString)),
       mTag(tag),
-      mAdpfProfileTag(toString(tag)),
+      mAdpfProfile(HintManager::GetInstance()->GetAdpfProfile(toString(mTag))),
+      mOnAdpfUpdate(
+              [this](const std::shared_ptr<AdpfConfig> config) { this->setAdpfProfile(config); }),
       mSessionRecords(getAdpfProfile()->mHeuristicBoostOn.has_value() &&
                                       getAdpfProfile()->mHeuristicBoostOn.value()
                               ? std::make_unique<SessionRecords>(
@@ -160,6 +162,7 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
     ATRACE_CALL();
     ATRACE_INT(mAppDescriptorTrace->trace_target.c_str(), mDescriptor->targetNs.count());
     ATRACE_INT(mAppDescriptorTrace->trace_active.c_str(), mDescriptor->is_active.load());
+    HintManager::GetInstance()->RegisterAdpfUpdateEvent(toString(mTag), &mOnAdpfUpdate);
 
     mLastUpdatedTime = std::chrono::steady_clock::now();
     mPSManager->addPowerSession(mIdString, mDescriptor, mAppDescriptorTrace, threadIds);
@@ -272,6 +275,7 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::close()
     // Remove the session from PowerSessionManager first to avoid racing.
     mPSManager->removePowerSession(mSessionId);
     mDescriptor->is_active.store(false);
+    HintManager::GetInstance()->UnregisterAdpfUpdateEvent(toString(mTag), &mOnAdpfUpdate);
     ATRACE_INT(mAppDescriptorTrace->trace_min.c_str(), 0);
     return ndk::ScopedAStatus::ok();
 }
@@ -606,9 +610,20 @@ SessionTag PowerHintSession<HintManagerT, PowerSessionManagerT>::getSessionTag()
 }
 
 template <class HintManagerT, class PowerSessionManagerT>
-std::shared_ptr<AdpfConfig> PowerHintSession<HintManagerT, PowerSessionManagerT>::getAdpfProfile()
-        const {
-    return HintManager::GetInstance()->GetAdpfProfile(mAdpfProfileTag);
+const std::shared_ptr<AdpfConfig>
+PowerHintSession<HintManagerT, PowerSessionManagerT>::getAdpfProfile() const {
+    if (!mAdpfProfile) {
+        return HintManager::GetInstance()->GetAdpfProfile(toString(mTag));
+    }
+    return mAdpfProfile;
+}
+
+template <class HintManagerT, class PowerSessionManagerT>
+void PowerHintSession<HintManagerT, PowerSessionManagerT>::setAdpfProfile(
+        const std::shared_ptr<AdpfConfig> profile) {
+    // Must prevent profile from being changed in a binder call duration.
+    std::scoped_lock lock{mPowerHintSessionLock};
+    mAdpfProfile = profile;
 }
 
 std::string AppHintDesc::toString() const {
