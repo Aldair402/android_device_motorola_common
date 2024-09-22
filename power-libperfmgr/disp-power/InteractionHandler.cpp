@@ -14,39 +14,76 @@
  * limitations under the License.
  */
 
-//#define LOG_NDEBUG 0
-
-#define LOG_TAG "android.hardware.power@1.3-service.moto-common"
+#define LOG_TAG "powerhal-libperfmgr"
 #define ATRACE_TAG (ATRACE_TAG_POWER | ATRACE_TAG_HAL)
 
+#include "InteractionHandler.h"
+
+#include <android-base/properties.h>
 #include <fcntl.h>
+#include <perfmgr/HintManager.h>
 #include <poll.h>
 #include <sys/eventfd.h>
 #include <time.h>
 #include <unistd.h>
-
-#include <android-base/properties.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
-#include "InteractionHandler.h"
+#include <array>
+#include <memory>
 
 #define MAX_LENGTH 64
 
 #define MSINSEC 1000L
-#define USINMS 1000000L
+#define NSINMS 1000000L
+
+namespace aidl {
+namespace google {
+namespace hardware {
+namespace power {
+namespace impl {
+namespace pixel {
+
+namespace {
 
 static const bool kDisplayIdleSupport =
         ::android::base::GetBoolProperty("vendor.powerhal.disp.idle_support", true);
+static const std::array<const char *, 3> kDispIdlePath = {"/sys/class/drm/card0/device/idle_state",
+                                                          "/sys/class/graphics/fb0/idle_state",
+                                                          "/sys/class/graphics/fb0/device/idle_state"};
+static const uint32_t kWaitMs =
+        ::android::base::GetUintProperty("vendor.powerhal.disp.idle_wait", /*default*/ 100U);
+static const uint32_t kMinDurationMs =
+        ::android::base::GetUintProperty("vendor.powerhal.interaction.min", /*default*/ 1400U);
+static const uint32_t kMaxDurationMs =
+        ::android::base::GetUintProperty("vendor.powerhal.interaction.max", /*default*/ 5650U);
+static const uint32_t kDurationOffsetMs =
+        ::android::base::GetUintProperty("vendor.powerhal.interaction.offset", /*default*/ 650U);
 
-InteractionHandler::InteractionHandler(std::shared_ptr<HintManager> const & hint_manager)
-    : mState(INTERACTION_STATE_UNINITIALIZED),
-      mWaitMs(100),
-      mMinDurationMs(1400),
-      mMaxDurationMs(5650),
-      mDurationMs(0),
-      mHintManager(hint_manager) {
+static size_t CalcTimespecDiffMs(struct timespec start, struct timespec end) {
+    size_t diff_in_ms = 0;
+    diff_in_ms += (end.tv_sec - start.tv_sec) * MSINSEC;
+    diff_in_ms += (end.tv_nsec - start.tv_nsec) / NSINMS;
+    return diff_in_ms;
 }
+
+static int FbIdleOpen(void) {
+    int fd;
+    for (const auto &path : kDispIdlePath) {
+        fd = open(path, O_RDONLY);
+        if (fd >= 0)
+            return fd;
+    }
+    ALOGE("Unable to open fb idle state path (%d)", errno);
+    return -1;
+}
+
+}  // namespace
+
+using ::android::perfmgr::HintManager;
+
+InteractionHandler::InteractionHandler()
+    : mState(INTERACTION_STATE_UNINITIALIZED), mDurationMs(0) {}
 
 InteractionHandler::~InteractionHandler() {
     Exit();
@@ -58,11 +95,10 @@ bool InteractionHandler::Init() {
     if (mState != INTERACTION_STATE_UNINITIALIZED)
         return true;
 
-    mIdleFd = open(FB_IDLE_PATH, O_RDONLY);
-    if (mIdleFd < 0) {
-        ALOGE("Unable to open idle state path (%d)", errno);
+    int fd = FbIdleOpen();
+    if (fd < 0)
         return false;
-    }
+    mIdleFd = fd;
 
     mEventFd = eventfd(0, EFD_NONBLOCK);
     if (mEventFd < 0) {
@@ -72,8 +108,7 @@ bool InteractionHandler::Init() {
     }
 
     mState = INTERACTION_STATE_IDLE;
-    mThread = std::unique_ptr<std::thread>(
-        new std::thread(&InteractionHandler::Routine, this));
+    mThread = std::unique_ptr<std::thread>(new std::thread(&InteractionHandler::Routine, this));
 
     return true;
 }
@@ -96,26 +131,16 @@ void InteractionHandler::Exit() {
 
 void InteractionHandler::PerfLock() {
     ALOGV("%s: acquiring perf lock", __func__);
-    if (!mHintManager->DoHint("INTERACTION")) {
+    if (!HintManager::GetInstance()->DoHint("INTERACTION")) {
         ALOGE("%s: do hint INTERACTION failed", __func__);
     }
-    ATRACE_INT("interaction_lock", 1);
 }
 
 void InteractionHandler::PerfRel() {
     ALOGV("%s: releasing perf lock", __func__);
-    if (!mHintManager->EndHint("INTERACTION")) {
+    if (!HintManager::GetInstance()->EndHint("INTERACTION")) {
         ALOGE("%s: end hint INTERACTION failed", __func__);
     }
-    ATRACE_INT("interaction_lock", 0);
-}
-
-long long InteractionHandler::CalcTimespecDiffMs(struct timespec start,
-                                               struct timespec end) {
-    long long diff_in_us = 0;
-    diff_in_us += (end.tv_sec - start.tv_sec) * MSINSEC;
-    diff_in_us += (end.tv_nsec - start.tv_nsec) / USINMS;
-    return diff_in_us;
 }
 
 void InteractionHandler::Acquire(int32_t duration) {
@@ -123,39 +148,39 @@ void InteractionHandler::Acquire(int32_t duration) {
 
     std::lock_guard<std::mutex> lk(mLock);
 
-    int inputDuration = duration + 650;
+    int inputDuration = duration + kDurationOffsetMs;
     int finalDuration;
-    if (inputDuration > mMaxDurationMs)
-        finalDuration = mMaxDurationMs;
-    else if (inputDuration > mMinDurationMs)
+    if (inputDuration > kMaxDurationMs)
+        finalDuration = kMaxDurationMs;
+    else if (inputDuration > kMinDurationMs)
         finalDuration = inputDuration;
     else
-        finalDuration = mMinDurationMs;
+        finalDuration = kMinDurationMs;
 
     // Fallback to do boost directly
     // 1) override property is set OR
     // 2) InteractionHandler not initialized
     if (!kDisplayIdleSupport || mState == INTERACTION_STATE_UNINITIALIZED) {
-        mHintManager->DoHint("INTERACTION", std::chrono::milliseconds(finalDuration));
+        HintManager::GetInstance()->DoHint("INTERACTION", std::chrono::milliseconds(finalDuration));
         return;
     }
 
     struct timespec cur_timespec;
     clock_gettime(CLOCK_MONOTONIC, &cur_timespec);
     if (mState != INTERACTION_STATE_IDLE && finalDuration <= mDurationMs) {
-        long long elapsed_time = CalcTimespecDiffMs(mLastTimespec, cur_timespec);
+        size_t elapsed_time = CalcTimespecDiffMs(mLastTimespec, cur_timespec);
         // don't hint if previous hint's duration covers this hint's duration
         if (elapsed_time <= (mDurationMs - finalDuration)) {
-            ALOGV("%s: Previous duration (%d) cover this (%d) elapsed: %lld",
-                  __func__, mDurationMs, finalDuration, elapsed_time);
+            ALOGV("%s: Previous duration (%d) cover this (%d) elapsed: %lld", __func__,
+                  static_cast<int>(mDurationMs), static_cast<int>(finalDuration),
+                  static_cast<long long>(elapsed_time));
             return;
         }
     }
     mLastTimespec = cur_timespec;
     mDurationMs = finalDuration;
 
-    ALOGV("%s: input: %d final duration: %d", __func__,
-          duration, finalDuration);
+    ALOGV("%s: input: %d final duration: %d", __func__, duration, finalDuration);
 
     if (mState == INTERACTION_STATE_WAITING)
         AbortWaitLocked();
@@ -177,8 +202,7 @@ void InteractionHandler::Release() {
         uint64_t val;
         ssize_t ret = read(mEventFd, &val, sizeof(val));
 
-        ALOGW_IF(ret < 0, "%s: failed to clear eventfd (%zd, %d)",
-                 __func__, ret, errno);
+        ALOGW_IF(ret < 0, "%s: failed to clear eventfd (%zd, %d)", __func__, ret, errno);
     }
 }
 
@@ -236,6 +260,7 @@ void InteractionHandler::WaitForIdle(int32_t wait_ms, int32_t timeout_ms) {
 }
 
 void InteractionHandler::Routine() {
+    pthread_setname_np(pthread_self(), "DispIdle");
     std::unique_lock<std::mutex> lk(mLock, std::defer_lock);
 
     while (true) {
@@ -246,7 +271,14 @@ void InteractionHandler::Routine() {
         mState = INTERACTION_STATE_WAITING;
         lk.unlock();
 
-        WaitForIdle(mWaitMs, mDurationMs);
+        WaitForIdle(kWaitMs, mDurationMs);
         Release();
     }
 }
+
+}  // namespace pixel
+}  // namespace impl
+}  // namespace power
+}  // namespace hardware
+}  // namespace google
+}  // namespace aidl

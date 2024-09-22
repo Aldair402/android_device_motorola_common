@@ -14,32 +14,37 @@
  * limitations under the License.
  */
 
-#ifndef INTERACTIONHANDLER_H
-#define INTERACTIONHANDLER_H
+#pragma once
 
 #include <condition_variable>
+#include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 
-#include <perfmgr/HintManager.h>
+namespace aidl {
+namespace google {
+namespace hardware {
+namespace power {
+namespace impl {
+namespace pixel {
 
-using ::android::perfmgr::HintManager;
-
-enum interaction_state {
+enum InteractionState {
     INTERACTION_STATE_UNINITIALIZED,
     INTERACTION_STATE_IDLE,
     INTERACTION_STATE_INTERACTION,
     INTERACTION_STATE_WAITING,
 };
 
-struct InteractionHandler {
-    InteractionHandler(std::shared_ptr<HintManager> const & hint_manager);
+class InteractionHandler {
+  public:
+    InteractionHandler();
     ~InteractionHandler();
     bool Init();
     void Exit();
     void Acquire(int32_t duration);
 
- private:
+  private:
     void Release();
     void WaitForIdle(int32_t wait_ms, int32_t timeout_ms);
     void AbortWaitLocked();
@@ -48,24 +53,19 @@ struct InteractionHandler {
     void PerfLock();
     void PerfRel();
 
-    long long CalcTimespecDiffMs(struct timespec start, struct timespec end);
-
-    enum interaction_state mState;
-
+    enum InteractionState mState;
     int mIdleFd;
     int mEventFd;
-
-    int32_t mWaitMs;
-    int32_t mMinDurationMs;
-    int32_t mMaxDurationMs;
     int32_t mDurationMs;
-
     struct timespec mLastTimespec;
-
     std::unique_ptr<std::thread> mThread;
     std::mutex mLock;
     std::condition_variable mCond;
-    std::shared_ptr<HintManager> mHintManager;
 };
 
-#endif //INTERACTIONHANDLER_H
+}  // namespace pixel
+}  // namespace impl
+}  // namespace power
+}  // namespace hardware
+}  // namespace google
+}  // namespace aidl

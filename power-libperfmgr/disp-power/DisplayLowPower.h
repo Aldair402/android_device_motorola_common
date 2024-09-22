@@ -16,14 +16,9 @@
 
 #pragma once
 
-#include <aidl/google/hardware/power/extension/pixel/BnPowerExt.h>
-#include <perfmgr/HintManager.h>
+#include <string_view>
 
-#include <atomic>
-#include <memory>
-#include <thread>
-
-#include "disp-power/DisplayLowPower.h"
+#include <android-base/unique_fd.h>
 
 namespace aidl {
 namespace google {
@@ -32,16 +27,20 @@ namespace power {
 namespace impl {
 namespace pixel {
 
-class PowerExt : public ::aidl::google::hardware::power::extension::pixel::BnPowerExt {
+class DisplayLowPower {
   public:
-    PowerExt(std::shared_ptr<DisplayLowPower> dlpw) : mDisplayLowPower(dlpw) {}
-    ndk::ScopedAStatus setMode(const std::string &mode, bool enabled) override;
-    ndk::ScopedAStatus isModeSupported(const std::string &mode, bool *_aidl_return) override;
-    ndk::ScopedAStatus setBoost(const std::string &boost, int32_t durationMs) override;
-    ndk::ScopedAStatus isBoostSupported(const std::string &boost, bool *_aidl_return) override;
+    DisplayLowPower();
+    ~DisplayLowPower() {}
+    void Init();
+    void SetDisplayLowPower(bool enable);
 
   private:
-    std::shared_ptr<DisplayLowPower> mDisplayLowPower;
+    void ConnectPpsDaemon();
+    int SendPpsCommand(const std::string_view cmd);
+    void SetFoss(bool enable);
+
+    ::android::base::unique_fd mPpsSocket;
+    bool mFossStatus;
 };
 
 }  // namespace pixel

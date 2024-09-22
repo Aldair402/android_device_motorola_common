@@ -13,12 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 cc_library {
     name: "libdisppower",
     proprietary: true,
     srcs: [
+        "disp-power/DisplayLowPower.cpp",
         "disp-power/InteractionHandler.cpp",
     ],
+    cpp_std: "gnu++20",
     shared_libs: [
         "libbase",
         "libcutils",
@@ -27,63 +33,52 @@ cc_library {
         "libutils",
     ],
     defaults: [
-        "hidl_defaults",
         "moto_common_power_hal_cc_defaults"
     ],
 }
 
 cc_binary {
-    name: "android.hardware.power@1.3-service.moto-common",
+    name: "android.hardware.power-service.moto-common",
+    defaults: ["android.hardware.power-ndk_shared"],
     relative_install_path: "hw",
-    vintf_fragments: ["hidl/android.hardware.power@1.3-service.moto-common.xml"],
-    init_rc: ["hidl/android.hardware.power@1.3-service.moto-common.rc"],
-    srcs: [
-        "hidl/service.cpp",
-        "hidl/Power.cpp",
-        "hidl/power-helper.c",
-    ],
-    cflags: [
-        "-Wall",
-        "-Werror",
-    ],
-    shared_libs: [
-        "libbase",
-        "libhidlbase",
-        "liblog",
-        "libutils",
-        "libcutils",
-        "android.hardware.power@1.0",
-        "android.hardware.power@1.1",
-        "android.hardware.power@1.2",
-        "android.hardware.power@1.3",
-        "libdisppower",
-        "libperfmgr",
-    ],
-    proprietary: true,
-}
-
-cc_binary {
-    name: "android.hardware.power-service.moto-common-libperfmgr",
-    relative_install_path: "hw",
-    init_rc: ["aidl/android.hardware.power-service.moto-common-libperfmgr.rc"],
+    init_rc: ["aidl/android.hardware.power-service.moto-common.rc"],
     vintf_fragments: ["aidl/android.hardware.power-service.moto-common.xml"],
     vendor: true,
+    cflags: [
+        "-Wthread-safety",
+    ],
     shared_libs: [
-        "android.hardware.power-V1-ndk",
         "libbase",
         "libcutils",
         "liblog",
         "libutils",
         "libbinder_ndk",
-        "libdisppower",
+        "libdisppower-pixel",
         "libperfmgr",
+        "libprocessgroup",
         "pixel-power-ext-V1-ndk",
+        "android.hardware.common.fmq-V1-ndk",
+        "libfmq",
+    ],
+    static_libs: [
+        "libgmock",
+        "libgtest",
     ],
     srcs: [
+        "aidl/BackgroundWorker.cpp",
+        "aidl/GpuCalculationHelpers.cpp",
+        "aidl/GpuCapacityNode.cpp",
         "aidl/service.cpp",
         "aidl/Power.cpp",
         "aidl/PowerExt.cpp",
+        "aidl/PowerHintSession.cpp",
+        "aidl/PowerSessionManager.cpp",
+        "aidl/UClampVoter.cpp",
+        "aidl/SessionRecords.cpp",
+        "aidl/SessionTaskMap.cpp",
+        "aidl/SessionValueEntry.cpp",
     ],
+    cpp_std: "gnu++20",
 }
 
 soong_config_module_type {

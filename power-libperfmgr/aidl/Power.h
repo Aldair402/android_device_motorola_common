@@ -16,13 +16,14 @@
 
 #pragma once
 
+#include <aidl/android/hardware/power/BnPower.h>
+
 #include <atomic>
 #include <memory>
 #include <thread>
 
-#include <aidl/android/hardware/power/BnPower.h>
-#include <perfmgr/HintManager.h>
-
+#include "AdpfTypes.h"
+#include "disp-power/DisplayLowPower.h"
 #include "disp-power/InteractionHandler.h"
 
 namespace aidl {
@@ -32,25 +33,33 @@ namespace power {
 namespace impl {
 namespace pixel {
 
-using ::InteractionHandler;
-using ::aidl::android::hardware::power::Boost;
-using ::aidl::android::hardware::power::Mode;
-using ::android::perfmgr::HintManager;
-
 class Power : public ::aidl::android::hardware::power::BnPower {
   public:
-    Power(std::shared_ptr<HintManager> hm);
+    Power(std::shared_ptr<DisplayLowPower> dlpw);
     ndk::ScopedAStatus setMode(Mode type, bool enabled) override;
     ndk::ScopedAStatus isModeSupported(Mode type, bool *_aidl_return) override;
     ndk::ScopedAStatus setBoost(Boost type, int32_t durationMs) override;
     ndk::ScopedAStatus isBoostSupported(Boost type, bool *_aidl_return) override;
+    ndk::ScopedAStatus createHintSession(int32_t tgid, int32_t uid,
+                                         const std::vector<int32_t> &threadIds,
+                                         int64_t durationNanos,
+                                         std::shared_ptr<IPowerHintSession> *_aidl_return) override;
+    ndk::ScopedAStatus createHintSessionWithConfig(
+            int32_t tgid, int32_t uid, const std::vector<int32_t> &threadIds, int64_t durationNanos,
+            SessionTag tag, SessionConfig *config,
+            std::shared_ptr<IPowerHintSession> *_aidl_return) override;
+    ndk::ScopedAStatus getHintSessionPreferredRate(int64_t *outNanoseconds) override;
+    ndk::ScopedAStatus getSessionChannel(int32_t tgid, int32_t uid,
+                                         ChannelConfig *_aidl_return) override;
+    ndk::ScopedAStatus closeSessionChannel(int32_t tgid, int32_t uid) override;
     binder_status_t dump(int fd, const char **args, uint32_t numArgs) override;
 
   private:
-    std::shared_ptr<HintManager> mHintManager;
+    std::shared_ptr<DisplayLowPower> mDisplayLowPower;
     std::unique_ptr<InteractionHandler> mInteractionHandler;
     std::atomic<bool> mVRModeOn;
     std::atomic<bool> mSustainedPerfModeOn;
+    int32_t mServiceVersion;
 };
 
 }  // namespace pixel
