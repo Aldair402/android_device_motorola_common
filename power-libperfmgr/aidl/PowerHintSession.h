@@ -93,6 +93,10 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     // Data
     PowerSessionManagerT *mPSManager;
     const int64_t mSessionId = 0;
+    // Tag labeling what kind of session this is
+    const SessionTag mSessTag;
+    // Pixel process tag for more granular session control.
+    const ProcessTag mProcTag{ProcessTag::DEFAULT};
     const std::string mIdString;
     std::shared_ptr<AppHintDesc> mDescriptor GUARDED_BY(mPowerHintSessionLock);
 
@@ -104,10 +108,6 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     std::unordered_map<std::string, std::optional<bool>> mSupportedHints;
     // Use the value of the last enum in enum_range +1 as array size
     std::array<bool, enum_size<SessionMode>()> mModes GUARDED_BY(mPowerHintSessionLock){};
-    // Tag labeling what kind of session this is
-    const SessionTag mSessTag;
-    // Pixel process tag for more granular session control.
-    const ProcessTag mProcTag{ProcessTag::DEFAULT};
     std::shared_ptr<AdpfConfig> mAdpfProfile;
     std::function<void(const std::shared_ptr<AdpfConfig>)> mOnAdpfUpdate;
     std::unique_ptr<SessionRecords> mSessionRecords GUARDED_BY(mPowerHintSessionLock) = nullptr;

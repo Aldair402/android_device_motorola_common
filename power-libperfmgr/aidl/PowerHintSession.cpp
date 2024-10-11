@@ -58,6 +58,9 @@ static inline int64_t ns_to_100us(int64_t ns) {
     return ns / 100000;
 }
 
+static const char systemSessionCheckPath[] = "/proc/vendor_sched/is_tgid_system_ui";
+static const bool systemSessionCheckNodeExist = access(systemSessionCheckPath, W_OK) == 0;
+
 }  // namespace
 
 template <class HintManagerT, class PowerSessionManagerT>
@@ -141,10 +144,20 @@ int64_t PowerHintSession<HintManagerT, PowerSessionManagerT>::convertWorkDuratio
 
 template <class HintManagerT, class PowerSessionManagerT>
 ProcessTag PowerHintSession<HintManagerT, PowerSessionManagerT>::getProcessTag(int32_t tgid) {
-    auto const systemSessionCheckPath = "/proc/vendor_sched/is_tgid_system_ui";
+    if (!systemSessionCheckNodeExist) {
+        ALOGD("Vendor system session checking node doesn't exist");
+        return ProcessTag::DEFAULT;
+    }
+
+    int flags = O_WRONLY | O_TRUNC | O_CLOEXEC;
+    ::android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(systemSessionCheckPath, flags)));
+    if (fd == -1) {
+        ALOGW("Can't open system session checking node %s", systemSessionCheckPath);
+        return ProcessTag::DEFAULT;
+    }
     // The file-write return status is true if the task belongs to systemUI or Launcher. Other task
     // or invalid tgid will return a false value.
-    auto stat = ::android::base::WriteStringToFile(std::to_string(tgid), systemSessionCheckPath);
+    auto stat = ::android::base::WriteStringToFd(std::to_string(tgid), fd);
     ALOGD("System session checking result: %d - %d", tgid, stat);
     if (stat) {
         return ProcessTag::SYSTEM_UI;
@@ -159,13 +172,13 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
         SessionTag tag)
     : mPSManager(PowerSessionManagerT::getInstance()),
       mSessionId(++sSessionIDCounter),
-      mIdString(StringPrintf("%" PRId32 "-%" PRId32 "-%" PRId64 "-%s", tgid, uid, mSessionId,
-                             toString(tag).c_str())),
+      mSessTag(tag),
+      mProcTag(getProcessTag(tgid)),
+      mIdString(StringPrintf("%" PRId32 "-%" PRId32 "-%" PRId64 "-%s-%" PRId32, tgid, uid,
+                             mSessionId, toString(tag).c_str(), static_cast<int32_t>(mProcTag))),
       mDescriptor(std::make_shared<AppHintDesc>(mSessionId, tgid, uid, threadIds, tag,
                                                 std::chrono::nanoseconds(durationNs))),
       mAppDescriptorTrace(std::make_shared<AppDescriptorTrace>(mIdString)),
-      mSessTag(tag),
-      mProcTag(getProcessTag(tgid)),
       mAdpfProfile(HintManager::GetInstance()->GetAdpfProfile(toString(mSessTag))),
       mOnAdpfUpdate(
               [this](const std::shared_ptr<AdpfConfig> config) { this->setAdpfProfile(config); }),
@@ -622,14 +635,14 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::getSess
 
 template <class HintManagerT, class PowerSessionManagerT>
 SessionTag PowerHintSession<HintManagerT, PowerSessionManagerT>::getSessionTag() const {
-    return mSessTag;
+    return mTag;
 }
 
 template <class HintManagerT, class PowerSessionManagerT>
 const std::shared_ptr<AdpfConfig>
 PowerHintSession<HintManagerT, PowerSessionManagerT>::getAdpfProfile() const {
     if (!mAdpfProfile) {
-        return HintManager::GetInstance()->GetAdpfProfile(toString(mSessTag));
+        return HintManager::GetInstance()->GetAdpfProfile(toString(mTag));
     }
     return mAdpfProfile;
 }
