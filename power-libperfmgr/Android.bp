@@ -94,7 +94,10 @@ cc_test {
         "pixel-power-ext-V1-ndk",
         "libfmq",
     ],
-    test_suites: ["device-tests"],
+    test_suites: [
+        "device-tests",
+        "device-pixel-tests",
+    ],
 }
 
 cc_binary {
