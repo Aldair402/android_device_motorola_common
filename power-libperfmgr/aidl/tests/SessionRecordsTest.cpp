@@ -108,6 +108,31 @@ TEST_F(SessionRecordsTest, checkLowFrameRate) {
     ASSERT_FALSE(mRecords->isLowFrameRate(25));
 }
 
+TEST_F(SessionRecordsTest, switchTargetDuration) {
+    ASSERT_FALSE(mRecords->isLowFrameRate(25));
+    mRecords->addReportedDurations(fakeWorkDurations({{0, 8}, {10, 9}, {20, 19}, {40, 8}}),
+                                   MS_TO_NS(10));
+    ASSERT_EQ(4, mRecords->getNumOfRecords());
+    ASSERT_EQ(MS_TO_US(19), mRecords->getMaxDuration().value());
+    ASSERT_EQ(MS_TO_US(11), mRecords->getAvgDuration().value());
+    ASSERT_EQ(1, mRecords->getNumOfMissedCycles());
+
+    // Change the target duration. It will reset all the old record states.
+    mRecords->resetRecords();
+    ASSERT_EQ(0, mRecords->getNumOfRecords());
+    ASSERT_FALSE(mRecords->getMaxDuration().has_value());
+    ASSERT_FALSE(mRecords->getAvgDuration().has_value());
+    ASSERT_EQ(0, mRecords->getNumOfMissedCycles());
+    ASSERT_FALSE(mRecords->isLowFrameRate(25));
+
+    mRecords->addReportedDurations(fakeWorkDurations({{50, 14}, {70, 16}}), MS_TO_NS(20));
+    ASSERT_EQ(2, mRecords->getNumOfRecords());
+    ASSERT_EQ(MS_TO_US(16), mRecords->getMaxDuration().value());
+    ASSERT_EQ(MS_TO_US(15), mRecords->getAvgDuration().value());
+    ASSERT_EQ(0, mRecords->getNumOfMissedCycles());
+    ASSERT_FALSE(mRecords->isLowFrameRate(25));
+}
+
 }  // namespace pixel
 }  // namespace impl
 }  // namespace power
