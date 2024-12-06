@@ -167,7 +167,7 @@ class PowerHintSessionTest : public ::testing::Test {
             thread_vendor_attrs.push_back(attr);
         }
 
-        const int32_t tag_word_pos = 7;  // The uclamp_fork_reset attribute position in dump log.
+        const int32_t tag_word_pos = 10;  // The adpf attribute position in dump log.
         if (thread_vendor_attrs.size() < tag_word_pos + 1) {
             return false;
         }
