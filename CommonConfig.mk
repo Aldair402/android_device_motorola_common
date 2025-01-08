@@ -152,12 +152,13 @@ ENABLE_VENDOR_RIL_SERVICE := true
 VENDOR_SECURITY_PATCH=$(PLATFORM_SECURITY_PATCH)
 
 # SELinux
-include device/sony/sepolicy/sepolicy.mk
-BOARD_USE_ENFORCING_SELINUX ?= true
-BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor
-ifeq ($(PRODUCT_USES_QCOM_HARDWARE),true)
-  BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor_qcom
-endif
+BOARD_USE_ENFORCING_SELINUX = false
+# include device/sony/sepolicy/sepolicy.mk
+# BOARD_USE_ENFORCING_SELINUX ?= true
+# BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor
+# ifeq ($(PRODUCT_USES_QCOM_HARDWARE),true)
+#  BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor_qcom
+# endif
 ifeq ($(PRODUCT_USES_MTK_HARDWARE),true)
   BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor_mtk
 endif
