@@ -95,9 +95,9 @@ BOARD_KERNEL_CMDLINE += \
     cgroup_disable=pressure loop.max_part=7 swiotlb=0 \
     cgroup.memory=nokmem,nosocket
 
-ifneq ($(BOARD_USE_ENFORCING_SELINUX),true)
+# ifneq ($(BOARD_USE_ENFORCING_SELINUX),true)
   BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
-endif
+# endif
 
 ## Increase log level on eng builds
 ifneq (,$(filter eng, $(TARGET_BUILD_VARIANT)))
@@ -152,17 +152,20 @@ ENABLE_VENDOR_RIL_SERVICE := true
 VENDOR_SECURITY_PATCH=$(PLATFORM_SECURITY_PATCH)
 
 # SELinux
-BOARD_USE_ENFORCING_SELINUX = false
-# include device/sony/sepolicy/sepolicy.mk
-# BOARD_USE_ENFORCING_SELINUX ?= true
-# BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor
-# ifeq ($(PRODUCT_USES_QCOM_HARDWARE),true)
-#  BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor_qcom
-# endif
-ifeq ($(PRODUCT_USES_MTK_HARDWARE),true)
-  BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor_mtk
+BOARD_USE_ENFORCING_SELINUX ?= true
+. device/motorola/targets/scripts/replace_camera_sepolicy.sh
+SELINUX_IGNORE_NEVERALLOWS := true
+include device/sony/sepolicy/sepolicy.mk
+BOARD_USE_ENFORCING_SELINUX ?= true
+BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor
+ifeq ($(PRODUCT_USES_QCOM_HARDWARE),true)
+  BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor_qcom
 endif
-SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/private
+ifeq ($(PRODUCT_USES_MTK_HARDWARE),true)
+BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor_mtk
+endif
+. device/motorola/targets/scripts/replace_camera_sepolicy.sh
+m bacon -j4SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/private
 
 # VINTF
 DEVICE_MANIFEST_FILE += $(COMMON_PATH)/vintf/manifest.xml
