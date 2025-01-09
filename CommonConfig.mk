@@ -153,7 +153,6 @@ VENDOR_SECURITY_PATCH=$(PLATFORM_SECURITY_PATCH)
 
 # SELinux
 BOARD_USE_ENFORCING_SELINUX ?= true
-. device/motorola/targets/scripts/replace_camera_sepolicy.sh
 SELINUX_IGNORE_NEVERALLOWS := true
 include device/sony/sepolicy/sepolicy.mk
 BOARD_USE_ENFORCING_SELINUX ?= true
@@ -164,8 +163,7 @@ endif
 ifeq ($(PRODUCT_USES_MTK_HARDWARE),true)
 BOARD_VENDOR_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/vendor_mtk
 endif
-. device/motorola/targets/scripts/replace_camera_sepolicy.sh
-m bacon -j4SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/private
+SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += $(COMMON_PATH)/sepolicy/private
 
 # VINTF
 DEVICE_MANIFEST_FILE += $(COMMON_PATH)/vintf/manifest.xml
