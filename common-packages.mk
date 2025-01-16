@@ -19,6 +19,11 @@ PRODUCT_PACKAGES += \
     libhwbinder.vendor \
     libhidltransport.vendor
 
+# fwk-detect
+PRODUCT_PACKAGES += \
+    libqti_vndfwk_detect \
+    libqti_vndfwk_detect.vendor
+
 # A/B
 PRODUCT_PACKAGES += \
     otapreopt_script \
