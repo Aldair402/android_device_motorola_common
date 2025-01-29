@@ -3,6 +3,7 @@
         <name>android.hardware.bluetooth</name>
         <transport>hwbinder</transport>
         <version>1.0</version>
+        <version>1.1</version>
         <interface>
             <name>IBluetoothHci</name>
             <instance>default</instance>
