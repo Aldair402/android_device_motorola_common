@@ -1,2 +1,2 @@
 # Bluetooth
-bluetooth.hci.erroneous_data_reporting.enabled u:object_r:bluetooth_config_prop:s0
+# bluetooth.hci.erroneous_data_reporting.enabled u:object_r:bluetooth_config_prop:s0
