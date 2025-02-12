@@ -14,6 +14,7 @@
 
 # Common path
 COMMON_PATH := device/motorola/common
+TARGET_DISABLE_EPPE := true
 
 # Hardware
 ## Mediatek
