@@ -158,7 +158,8 @@ $(call add-device-sku-inner,d)
 # Soong
 PRODUCT_SOONG_NAMESPACES += \
     $(COMMON_PATH) \
-    $(PLATFORM_COMMON_PATH)
+    $(PLATFORM_COMMON_PATH) \
+    hardware/qcom/wlan 
 
 ## Enable pixel soong namespace for Pixel USB and Power HAL
 PRODUCT_SOONG_NAMESPACES += \
